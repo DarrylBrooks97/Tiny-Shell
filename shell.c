@@ -11,20 +11,21 @@
 #define MAXARGS 256
 
 static char *sep = ";";
-static char *delim = " \t";
+static char *delim = " \t\n";
 
-int EXITSTATUS = 0;
+static int EXITSTATUS = 0;
+static int argIndex = 0;
 
 void ResetLine(char *line)
 {
-    memset(line, 0, MAXLEN);
+    memset(line, '\0', MAXLEN);
 }
 
 void ResetCommands(char *argv[MAXCMD][MAXCMD])
 {
     int i;
     for (i = 0; argv[i][0]; i++)
-        memset(argv[i][0], 0, MAXCMD);
+        memset(argv[i][0], '\0', MAXCMD);
 }
 
 void Debug(char *argv[MAXCMD][MAXCMD])
@@ -55,69 +56,72 @@ int ParseForSemiColon(char *str, char *parsedSemiColonCMDs[MAXCMD])
     int i = 0;
     char *token = strtok(str, sep);
 
-    if (strcmp(token, "quit\n") == 0)
+    if (strcmp(token, "quit\n") == 0){
         EXITSTATUS = 1;
+    }
+        
 
     while (i < MAXCMD && token)
     {
-        if (isspace(*token) == 0)
-        {
-            parsedSemiColonCMDs[i++] = token;
-        }
+        parsedSemiColonCMDs[i++] = token;
         token = strtok(NULL, sep);
     }
     parsedSemiColonCMDs[i] = NULL;
-    return parsedSemiColonCMDs[0] == NULL ? 0 : 1;
+    return 1;
 }
-void ParseCommands(char *line, char *argv[MAXCMD][MAXCMD], int cmd)
+void ParseCommands(char *line, char *argv[MAXCMD][MAXCMD])
 {
     char *token = strtok(line, delim);
     int index = 0;
     while (token)
     {
-        if (strcmp(token, "quit") == 0)
+        if (strcmp(token, "quit") == 0 && index==0)
             EXITSTATUS = 1;
-        argv[cmd][index++] = token;
+       
+        argv[argIndex][index++] = token;
+   
         token = strtok(NULL, delim);
     }
-    argv[cmd][index] = NULL;
+    argv[argIndex++][index] = NULL;
+    
 }
-int Parse(char *line, char *argv[MAXCMD][MAXCMD])
+void Parse(char *line, char *argv[MAXCMD][MAXCMD])
 {
     int i;
     char *token;
     char *parsedSemiColonCMDs[MAXCMD];
 
     int successfulParse = ParseForSemiColon(line, parsedSemiColonCMDs);
-
     if (successfulParse)
     {
-        for (i = 0; parsedSemiColonCMDs[i]; ++i)
+        for(i=0;parsedSemiColonCMDs[i];++i)
         {
-            ParseCommands(parsedSemiColonCMDs[i], argv, i);
+            ParseCommands(parsedSemiColonCMDs[i], argv);
         }
     }
-    else
-    {
-        ParseCommands(line, argv, i);
-    }
-    return 1;
 }
 
 void Execute(char *argv[MAXCMD][MAXCMD])
 {
     int i = 0;
+    
     for (; argv[i][0]; ++i)
     {
         pid_t pid;
         pid_t waitStatus;
         int status;
-
+    
+        if(strcmp(argv[i][0],"quit")==0){
+            continue;
+        };
         if ((pid = fork()) == 0)
         {
-            execvp(argv[i][0], &argv[i][0]);
-            printf("Exec failed on command %s\n", argv[i][0]);
-            exit(1);
+            printf("%u\n",i);
+            if(pid==0){
+                execvp(argv[i][0], &argv[i][0]);
+                printf("Exec failed on command %s\n", argv[i][0]);
+                exit(1);
+            }
         }
         else
         {
@@ -148,24 +152,22 @@ int main(int argc, char *argv[])
         printf("FILE IS: %s, argv[1] is %s\n", argv[1], argv[1]);
         while (fgets(line, MAXLEN, fp))
         {
-            printf("Retrieved line of length %ld :\n+%s\n", strlen(line), line);
             // Remove end line character
             line[strlen(line) - 1] = '\0';
+            printf("Retrieved line of length %ld :\n+%s\n", strlen(line), line);
+            
 
             // Only process valid input commands
             if (IsValidInput(line))
             {
-                int success = Parse(line, cmds);
-                if (strcmp(cmds[0][0], "quit") == 0)
-                {
-                    exit(0);
-                }
-                if (success)
-                    Execute(cmds);
+                Parse(line, cmds);
+                Execute(cmds);
             }
+            if(EXITSTATUS) exit(0);
             ResetLine(line);
             ResetCommands(cmds);
         }
+        if(EXITSTATUS) exit(0);
         fclose(fp);
     }
     else
@@ -176,18 +178,13 @@ int main(int argc, char *argv[])
         {
             // Remove end line character
             line[strlen(line) - 1] = '\0';
-
             // Only process valid input commands
             if (IsValidInput(line))
             {
-                int success = Parse(line, cmds);
-                if (strcmp(cmds[0][0], "quit") == 0)
-                {
-                    exit(0);
-                }
-                if (success)
-                    Execute(cmds);
+                Parse(line, cmds);
+                Execute(cmds);
             }
+            if(EXITSTATUS) exit(0);
             ResetLine(line);
             ResetCommands(cmds);
             printf("Prompt>>");
