@@ -156,7 +156,6 @@ void loop(int isFile,FILE *fp,char *argv[]){
             }
             if(EXITSTATUS) exit(0);
             ResetLine(line);
-            // ResetCommands(cmds);
             argIndex = 0;
         }
         fclose(fp);
